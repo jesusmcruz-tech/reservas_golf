@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Reserva Golf">
+  <title>⛳ Reserva Golf</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #16213e;
+      border-radius: 20px;
+      padding: 30px 24px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 28px; text-align: center; margin-bottom: 6px; }
+    .subtitle { text-align: center; color: #888; font-size: 14px; margin-bottom: 28px; }
+    label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; margin-top: 16px; }
+    input[type="time"] {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 2px solid #0f3460;
+      background: #0f3460;
+      color: #fff;
+      font-size: 24px;
+      text-align: center;
+      outline: none;
+    }
+    input[type="time"]:focus { border-color: #4ecca3; }
+    .fecha-info {
+      background: #0f3460;
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      margin-top: 16px;
+      font-size: 15px;
+      color: #4ecca3;
+    }
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 18px;
+      border-radius: 14px;
+      border: none;
+      background: #4ecca3;
+      color: #1a1a2e;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:active { opacity: 0.8; }
+    button:disabled { background: #444; color: #888; cursor: not-allowed; }
+    #log {
+      margin-top: 24px;
+      background: #0a0a1a;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.8;
+      min-height: 60px;
+      display: none;
+    }
+    .log-line { padding: 2px 0; }
+    .ok  { color: #4ecca3; }
+    .err { color: #ff6b6b; }
+    .inf { color: #ffd93d; }
+    #countdown {
+      text-align: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: #ffd93d;
+      margin-top: 16px;
+      display: none;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⛳ Reserva Golf</h1>
+    <p class="subtitle">Anoreta Golf · 4 jugadores</p>
+
+    <label>Hora de juego</label>
+    <input type="time" id="hora" value="08:08">
+
+    <div class="fecha-info" id="fechaInfo"></div>
+
+    <div id="countdown"></div>
+
+    <button id="btn" onclick="iniciar()">🕘 Reservar a las 21:00</button>
+
+    <div id="log"></div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script>
+    // ─── CONFIGURACIÓN ───────────────────────────────────────────
+    const idSocio     = "5307";
+    const idClub      = "131";
+    const idRecorrido = "01";
+    const idHoyos     = "1";
+    const BASE        = "https://members.teeone.golf/anoretagolf";
+    const API         = "https://api.teeone.golf/InternalMembersEngine/v1/api/Front/ReservasSociosTemp";
+
+    const listaSocios = [
+      { idSocio: "5307", nombre: "CRUZ PAREJA, JESUS MANUEL",   licencia: "AM75514305", codTarifa: "01001", esBono: true, hex: "18,4", idProcedencia: 1, importe: 0, nacionalidad: "ES", listaInvitados: [], listaServicios: [], permiteEdicion: false },
+      { idSocio: "5422", nombre: "CALIZ GARCIA, MARIA DOLORES", licencia: "AM75514306", codTarifa: "01001", esBono: true, hex: "18,4", idProcedencia: 1, importe: 0, nacionalidad: "ES", listaInvitados: [], listaServicios: [], permiteEdicion: false },
+      { idSocio: "5383", nombre: "XIMENEZ MOZO, GEMA",          licencia: "AM75341753", codTarifa: "01001", esBono: true, hex: "18,4", idProcedencia: 1, importe: 0, nacionalidad: "ES", listaInvitados: [], listaServicios: [], permiteEdicion: false },
+      { idSocio: "4906", nombre: "SANTOS MARTINEZ, ANTONIO",    licencia: "AM75480224", codTarifa: "01001", esBono: true, hex: "18,4", idProcedencia: 1, importe: 0, nacionalidad: "ES", listaInvitados: [], listaServicios: [], permiteEdicion: false }
+    ];
+
+    // ─── MOSTRAR FECHA OBJETIVO ───────────────────────────────────
+    function calcularFecha() {
+      const f = new Date();
+      f.setDate(f.getDate() + 3);
+      const dias = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+      const meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+      return {
+        texto: `${dias[f.getDay()]} ${f.getDate()} de ${meses[f.getMonth()]} de ${f.getFullYear()}`,
+        yy: f.getFullYear(),
+        mm: String(f.getMonth()+1).padStart(2,"0"),
+        dd: String(f.getDate()).padStart(2,"0")
+      };
+    }
+
+    const fechaObj = calcularFecha();
+    document.getElementById("fechaInfo").textContent = "📅 Reservando para: " + fechaObj.texto;
+
+    // ─── LOG ──────────────────────────────────────────────────────
+    function log(msg, tipo="inf") {
+      const el = document.getElementById("log");
+      el.style.display = "block";
+      el.innerHTML += `<div class="log-line ${tipo}">${msg}</div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // ─── CUENTA ATRÁS ─────────────────────────────────────────────
+    let intervalo = null;
+    function mostrarCuentaAtras(ms) {
+      const el = document.getElementById("countdown");
+      el.style.display = "block";
+      intervalo = setInterval(() => {
+        const restante = Math.max(0, ms - (Date.now() - inicio));
+        const s = Math.floor(restante / 1000);
+        const m = Math.floor(s / 60);
+        el.textContent = `${String(m).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+        if (restante <= 0) clearInterval(intervalo);
+      }, 500);
+    }
+    let inicio = 0;
+
+    // ─── FUNCIÓN PRINCIPAL ────────────────────────────────────────
+    async function iniciar() {
+      const horaElegida = document.getElementById("hora").value;
+      if (!horaElegida) { log("❌ Introduce una hora", "err"); return; }
+
+      const btn = document.getElementById("btn");
+      btn.disabled = true;
+      btn.textContent = "⏳ Esperando las 21:00...";
+      document.getElementById("log").innerHTML = "";
+      document.getElementById("log").style.display = "block";
+
+      const f = calcularFecha();
+      const fechaJuego = `${f.yy}/${f.mm}/${f.dd}`;
+      const fechaURL   = `${f.yy}${f.mm}${f.dd}`;
+
+      log(`📅 Fecha: ${fechaJuego} | Hora: ${horaElegida}`);
+
+      // Esperar hasta las 21:00:00
+      const objetivo = new Date();
+      objetivo.setHours(21, 0, 0, 0);
+      const ms = objetivo - new Date();
+
+      if (ms > 0) {
+        log(`⏳ Disparando en ${Math.round(ms/1000)} segundos...`);
+        inicio = Date.now();
+        mostrarCuentaAtras(ms);
+        await new Promise(r => setTimeout(r, ms));
+      }
+
+      clearInterval(intervalo);
+      document.getElementById("countdown").style.display = "none";
+      btn.textContent = "🔄 Ejecutando...";
+
+      // PASO 1: Obtener tokenCSRF
+      log("🔑 Obteniendo tokens...");
+      try {
+        const resPagina = await fetch(`${BASE}/reservas/inscripcion/${fechaURL}`, {
+          method: "GET", credentials: "include"
+        });
+        const html = await resPagina.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const tokenCSRF   = doc.querySelector("#tokenCSRF")?.value;
+        const tokenFresco = doc.querySelector("#HidToken")?.value;
+
+        if (!tokenCSRF || !tokenFresco) {
+          log("❌ No se encontraron tokens. ¿Estás logueado en teeone.golf?", "err");
+          log("👉 Abre members.teeone.golf, inicia sesión y vuelve a pulsar el botón", "err");
+          btn.disabled = false;
+          btn.textContent = "🕘 Reservar a las 21:00";
+          return;
+        }
+        log("✅ Tokens obtenidos", "ok");
+
+        // PASO 2: Bloquear hora
+        log(`🔒 Bloqueando hora ${horaElegida}...`);
+        const resBloquear = await fetch(`${BASE}/reservas/bloquear-inscripcion-api`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            culture: "es-ES", idSocio, idClub,
+            token: tokenFresco, fechaJuego,
+            horaJuego: horaElegida, idRecorrido, idHoyos,
+            numJugadores: "4", teetime: true,
+            tokenCSRF, tokenRecaptcha: ""
+          })
+        });
+        const dataBloquear = await resBloquear.json();
+        if (dataBloquear.res?.cod !== 1) {
+          log("❌ Error al bloquear: " + dataBloquear.res?.msg, "err");
+          btn.disabled = false;
+          btn.textContent = "🕘 Reservar a las 21:00";
+          return;
+        }
+        const localizador = dataBloquear.datos.localizador;
+        log("✅ Hora bloqueada · Localizador: " + localizador, "ok");
+
+        // PASO 3: Confirmar reserva
+        log("🚀 Confirmando reserva...");
+        $.ajax({
+          type: "POST", cache: false,
+          url: `${API}/PreReservarSocios`,
+          contentType: "application/json",
+          dataType: "json",
+          data: JSON.stringify({
+            culture: "es-ES", golf: true, idClub, idSocio, importe: 0,
+            localizador, token: tokenFresco,
+            listaReservas: [{
+              fechaJuego, horaJuego: horaElegida,
+              idHoyos, idRecorrido, numJugadores: 4,
+              listaSocios
+            }]
+          }),
+          success: function(data) {
+            if (data.res?.cod === 1) {
+              log("🎉 ¡RESERVA CONFIRMADA!", "ok");
+              log(`✅ ${horaElegida} · 4 jugadores · ${fechaJuego}`, "ok");
+              btn.textContent = "✅ ¡Reserva confirmada!";
+            } else {
+              log("❌ Error: " + data.res?.msg, "err");
+              btn.disabled = false;
+              btn.textContent = "🕘 Reservar a las 21:00";
+            }
+          },
+          error: function(xhr) {
+            log("❌ Error de red: " + xhr.status, "err");
+            btn.disabled = false;
+            btn.textContent = "🕘 Reservar a las 21:00";
+          }
+        });
+
+      } catch(e) {
+        log("❌ Error inesperado: " + e.message, "err");
+        btn.disabled = false;
+        btn.textContent = "🕘 Reservar a las 21:00";
+      }
+    }
+  </script>
+</body>
+</html>
